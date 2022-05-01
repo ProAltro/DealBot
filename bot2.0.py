@@ -33,6 +33,10 @@ class Game:
         self.chosen = None
         self.round = 1
 
+    async def start(self):
+        await self.channel.send("Game Started")
+        await self.channel.send(self.available_cases())
+
     def events(self, e):
         pass
 
@@ -58,8 +62,7 @@ class Game:
                     return False
                 else:
                     for i in m:
-                        if i not in self.cases.keys():
-                            print(i, self.cases.keys())
+                        if i - 1 not in self.cases.keys():
                             await self.channel.send(
                                 "Please pick from the available cases"
                             )
@@ -77,7 +80,9 @@ class Game:
                 if m in ["deal", "no deal", "nodeal", "no", "no_deal"]:
                     return True
                 else:
-                    self.channel.send("Please enter either **Deal** or **No Deal** ")
+                    await self.channel.send(
+                        "Please enter either **Deal** or **No Deal** "
+                    )
                     return False
             except:
                 self.channel.send(
@@ -88,22 +93,22 @@ class Game:
     async def proceed(self, m):
         if self.state[0] == "PICK":
             if self.round != 1:
-                picked = [int(i) for i in m.split()]
+                picked = [(int(i) - 1) for i in m.split()]
                 eliminated_text = "Eliminated:\n\n"
                 for i in picked:
-                    eliminated_text += f"Case: {i} - {self.cases[i]}\n"
+                    eliminated_text += f"Case: {i+1} - {self.cases[i]}\n"
                     del self.cases[i]
                 await self.channel.send(eliminated_text)
                 await self.channel.send("Offered 5000, Deal or No Deal ? ")
                 self.state = ("DND",)
 
             else:
-                chosen = int(m[0])
+                chosen = int(m) - 1
                 self.chosen = {chosen: self.cases[chosen]}
                 self.round += 1
                 self.state = ("PICK", 4)
                 del self.cases[chosen]
-                await self.channel.send(f"You picked case {chosen}")
+                await self.channel.send(f"You picked case {chosen+1}")
                 await self.channel.send(self.available_cases())
 
         elif self.state[0] == "DND":
@@ -117,8 +122,10 @@ class Game:
     def available_cases(self):
         cases_msg = "Available Cases:\n"
         for i in self.cases:
-            cases_msg += f"Case: {i}\n"
-        cases_msg += f"\nPick **{self.state[1]}** cases"
+            cases_msg += f"Case: {i+1}\n"
+        cases_msg += (
+            f"\nPick **{self.state[1]}** case{'s' if self.state[1] != 1 else ''}"
+        )
 
         return cases_msg
 
@@ -138,7 +145,7 @@ class MyClient(discord.Client):
         cid = message.channel.id
         if message.content.startswith("!dnd start"):
             self.games[cid] = Game(message.channel)
-            await message.channel.send("Game Started")
+            await self.games[cid].start()
             return
         elif message.content.startswith("!dnd end"):
             del self.games[cid]
