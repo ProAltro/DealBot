@@ -39,7 +39,7 @@ class Game:
         self.round = 1
 
     async def start(self):
-        await self.channel.send("Game Started")
+        await self.channel.send("Game Started\n")
         await self.channel.send(self.available_cases())
 
     def events(self, e):
