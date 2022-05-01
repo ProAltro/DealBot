@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-token = os.getenv("KEY")
+token = os.getenv("token")
 
 
 class Game:
