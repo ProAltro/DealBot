@@ -1,6 +1,11 @@
 import discord
 import random
-import asyncio
+import asyncio, os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+token = os.getenv("KEY")
 
 
 class Game:
@@ -163,4 +168,4 @@ class MyClient(discord.Client):
 
 
 client = MyClient()
-client.run("token")
+client.run(token)
