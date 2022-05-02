@@ -166,6 +166,7 @@ class MyClient(discord.Client):
 
         if "xyreo" in message.content.lower():
             await message.channel.send("Xyreo is gay")
+            await message.channel.send(f"<@{885418802815307817}>")
 
         if "pop" in message.content.lower():
             await message.add_reaction("🖕")
