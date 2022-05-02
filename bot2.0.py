@@ -172,7 +172,7 @@ class MyClient(discord.Client):
             await message.add_reaction("🖕")
 
         if message.content.lower().startswith("who is gay"):
-            await message.send("Xyreo")
+            await message.send("Xyreo is gay")
 
 
 client = MyClient()
