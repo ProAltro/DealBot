@@ -156,15 +156,16 @@ class MyClient(discord.Client):
             del self.games[cid]
             await message.channel.send("Game Ended")
             return
-        elif cid not in self.games:
-            return
+        elif cid in self.games:
+            game = self.games[cid]
+            m = message.content.lower()
+            if await game.is_proper(m):
+                await game.proceed(m)
+            else:
+                return
 
-        game = self.games[cid]
-        m = message.content.lower()
-        if await game.is_proper(m):
-            await game.proceed(m)
-        else:
-            return
+        if "xyreo" in message.content.lower():
+            await message.channel.send("Xyreo is gay")
 
 
 client = MyClient()
