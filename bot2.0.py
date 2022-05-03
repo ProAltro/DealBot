@@ -40,7 +40,7 @@ class Guild:
 
 class RU(Guild):
     def __init__(self):
-        super().__init__(XyreoIsGay)
+        super().__init__(XyreoIsGay, Pop)
 
 
 class VOT(Guild):
