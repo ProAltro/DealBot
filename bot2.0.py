@@ -30,7 +30,7 @@ class Pop(Command):
 
 
 class Guild:
-    def __init__(self, *commands):
+    def __init__(self, commands):
         self.commands: list[Command] = commands
 
     async def action(self, msg):
@@ -38,31 +38,19 @@ class Guild:
             await command.action(msg)
 
 
-class RU(Guild):
-    def __init__(self):
-        super().__init__(XyreoIsGay, Pop)
-
-
-class VOT(Guild):
-    def __init__(self):
-        super().__init__(XyreoIsGay)
-
-
-class Allen(Guild):
-    def __init__(self):
-        super().__init__(XyreoIsGay)
-
-
-class Test(Guild):
-    def __init__(self):
-        super().__init__(Pop, XyreoIsGay)
-
-
-guilds = {}
-guilds[763660200674459658] = RU()
-guilds[844921090237005864] = Allen()
-guilds[938050114201714688] = VOT()
-guilds[742671327143395439] = Test()
+names = {
+    "RU": 763660200674459658,
+    "Allen": 844921090237005864,
+    "VOT": 938050114201714688,
+    "Test": 742671327143395439,
+}
+mapping = {
+    "RU": [XyreoIsGay, Pop],
+    "VOT": [XyreoIsGay],
+    "Allen": [XyreoIsGay],
+    "Test": [XyreoIsGay, Pop],
+}
+guilds = {names[i]: Guild(mapping[i]) for i in names.keys()}
 
 
 class Game:
