@@ -8,6 +8,63 @@ load_dotenv()
 token = os.getenv("token")
 
 
+class Command:
+    @staticmethod
+    async def action(msg):
+        pass
+
+
+class XyreoIsGay(Command):
+    @staticmethod
+    async def action(msg: discord.Message):
+        if "xyreo" in msg.content.lower() or msg.content.lower().startswith(
+            "who is gay"
+        ):
+            await msg.reply("Xyreo is Gay")
+
+
+class Pop(Command):
+    async def action(msg: discord.Message):
+        if "pop" in msg.content.lower():
+            await msg.add_reaction("🖕")
+
+
+class Guild:
+    def __init__(self, *commands):
+        self.commands: list[Command] = commands
+
+    async def action(self, msg):
+        for command in self.commands:
+            await command.action(msg)
+
+
+class RU(Guild):
+    def __init__(self):
+        super().__init__(XyreoIsGay)
+
+
+class VOT(Guild):
+    def __init__(self):
+        super().__init__(XyreoIsGay)
+
+
+class Allen(Guild):
+    def __init__(self):
+        super().__init__(XyreoIsGay)
+
+
+class Test(Guild):
+    def __init__(self):
+        super().__init__(Pop, XyreoIsGay)
+
+
+guilds = {}
+guilds[763660200674459658] = RU()
+guilds[844921090237005864] = Allen()
+guilds[938050114201714688] = VOT()
+guilds[742671327143395439] = Test()
+
+
 class Game:
     awards = [
         "Ternion :Ternion",
@@ -144,7 +201,7 @@ class MyClient(discord.Client):
         self.games: dict[int, Game] = {}
 
     async def on_message(self, message: discord.Message):
-        # we do not want the bot to reply to itself
+        # region Deal Bot
         if message.author.id == self.user.id:
             return
         cid = message.channel.id
@@ -164,15 +221,16 @@ class MyClient(discord.Client):
             else:
                 return
 
-        if "xyreo" in message.content.lower():
-            await message.reply(f"<@{885418802815307817}> is gay")
+        # endregion
 
-        if "pop" in message.content.lower():
-            await message.add_reaction("🖕")
-
-        if message.content.lower().startswith("who is gay"):
-            await message.reply("Xyreo is gay")
+        gid = message.guild.id
+        await guilds[gid].action(message)
 
 
 client = MyClient()
-client.run(token)
+try:
+    client.run(token)
+except discord.errors.HTTPException:
+    print("\n\n\nBLOCKED BY RATE LIMITS\nRESTARTING NOW\n\n\n")
+    os.system("python restarter.py")
+    os.system("kill 1")
