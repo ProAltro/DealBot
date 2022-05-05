@@ -17,7 +17,7 @@ class Command:
 class AresPing(Command):
     @staticmethod
     async def action(msg: discord.Message):
-        if msg.author.id == 621638677612855306:
+        if "arnav" in msg.content.lower():
             await msg.reply(f"<@{688719979713003520}>")
 
 
