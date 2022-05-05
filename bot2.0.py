@@ -14,6 +14,13 @@ class Command:
         pass
 
 
+class AresPing(Command):
+    @staticmethod
+    async def action(msg: discord.Message):
+        if msg.author.id == 621638677612855306:
+            await msg.reply(f"<@{688719979713003520}>")
+
+
 class XyreoIsGay(Command):
     @staticmethod
     async def action(msg: discord.Message):
@@ -47,7 +54,7 @@ names = {
 mapping = {
     "RU": [XyreoIsGay, Pop],
     "VOT": [XyreoIsGay],
-    "Allen": [XyreoIsGay],
+    "Allen": [XyreoIsGay, AresPing],
     "Test": [XyreoIsGay, Pop],
 }
 guilds = {names[i]: Guild(mapping[i]) for i in names.keys()}
