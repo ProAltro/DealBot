@@ -198,6 +198,7 @@ class MyClient(discord.Client):
         print("------")
         self.games: dict[int, Game] = {}
         allen = self.get_guild(names['Allen'])
+        print('Allen: ',allen)
 
     async def on_member_update(self,before,after):
         bact = str(before.activity)
@@ -206,6 +207,7 @@ class MyClient(discord.Client):
             return
           
         role = get(allen.roles,name='Moosic')
+        
         if aact == 'Spotify':
           if role == None:
               print('Music Role Not Found')
@@ -244,7 +246,7 @@ class MyClient(discord.Client):
         await guilds[gid].action(message)
 
 
-client = MyClient()
+client = MyClient(intents=discord.Intents.all())
 try:
     client.run(token)
 except discord.errors.HTTPException:
