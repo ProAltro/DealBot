@@ -2,10 +2,12 @@ import discord
 import random
 import asyncio, os
 from dotenv import load_dotenv
+from discord.utils import get
 
 load_dotenv()
 
 token = os.getenv("token")
+allen = None
 
 
 class Command:
@@ -189,11 +191,31 @@ class Game:
 
 class MyClient(discord.Client):
     async def on_ready(self):
+        global allen
         print("Logged in as")
         print(self.user.name)
         print(self.user.id)
         print("------")
         self.games: dict[int, Game] = {}
+        allen = self.get_guild(names['Allen'])
+
+    async def on_member_update(self,before,after):
+        bact = str(before.activity)
+        aact = str(after.activity)
+        if bact == aact:
+            return
+          
+        role = get(allen.roles,name='Moosic')
+        if aact == 'Spotify':
+          if role == None:
+              print('Music Role Not Found')
+              return
+          await before.add_roles(role)
+        elif bact == 'Spotify':
+          if role == None:
+              print('Music Role Not Found')
+              return
+          await before.remove_roles(role)
 
     async def on_message(self, message: discord.Message):
         # region Deal Bot
