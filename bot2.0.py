@@ -206,7 +206,7 @@ class MyClient(discord.Client):
         if bact == aact:
             return
           
-        role = get(allen.roles,name='Moosic')
+        role = get(allen.roles,name='Music')
         
         if aact == 'Spotify':
           if role == None:
