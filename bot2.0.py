@@ -197,27 +197,31 @@ class MyClient(discord.Client):
         print(self.user.id)
         print("------")
         self.games: dict[int, Game] = {}
-        allen = self.get_guild(names['Allen'])
-        print('Allen: ',allen)
+        allen = self.get_guild(names["Allen"])
+        print("Allen: ", allen)
 
-    async def on_member_update(self,before,after):
-        bact = str(before.activity)
-        aact = str(after.activity)
-        if bact == aact:
+    async def on_member_update(self, before, after):
+        bact = list(before.activities)
+        aact = list(after.activities)
+        if len(bact) == len(aact):
             return
-          
-        role = get(allen.roles,name='Music')
-        
-        if aact == 'Spotify':
-          if role == None:
-              print('Music Role Not Found')
-              return
-          await before.add_roles(role)
-        elif bact == 'Spotify':
-          if role == None:
-              print('Music Role Not Found')
-              return
-          await before.remove_roles(role)
+
+        role = get(allen.roles, name="Music")
+
+        waslisten = False
+        islisten = False
+        for i in bact:
+            if isinstance(i, discord.activity.Spotify):
+                waslisten = True
+
+        for i in aact:
+            if isinstance(i, discord.activity.Spotify):
+                islisten = True
+
+        if not waslisten and islisten:
+            await before.add_roles(role)
+        elif waslisten and not islisten:
+            await before.remove_roles(role)
 
     async def on_message(self, message: discord.Message):
         # region Deal Bot
