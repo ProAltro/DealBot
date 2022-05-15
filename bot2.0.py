@@ -326,10 +326,10 @@ class Casino:
     async def set(self, id, amt):
         self.money[id] = amt
 
-    def rich(self, msg):
+    def rich(self):
         money = list(self.money.items())
         money = sorted(money, key=lambda x: x[1])
-        return money[-1]
+        return money
 
     def lottery_reset(self):
         self.lottery_tracker.clear()
@@ -409,9 +409,12 @@ class MyClient(discord.Client):
             msg = message.content.split()
             await self.casino.set(msg[1][2:-1], msg[2])
         elif message.content.startswith("?rich"):
-            det = self.casino.rich(message)
-            user: discord.User = await self.fetch_user(det[0])
-            await message.reply(f"{user.name}: **{det[1]}c**")
+            det = self.casino.rich()
+            s = ""
+            for i in det:
+                user: discord.User = await self.fetch_user(i[0])
+                s += f"{user.name} - **{i[1]}c**"
+            message.reply(s)
 
         gid = message.guild.id
         await guilds[gid].action(message)
