@@ -1,8 +1,9 @@
 import discord
-import random
+import random, json
 import asyncio, os
 from dotenv import load_dotenv
 from discord.utils import get
+from discord.ext import tasks
 
 load_dotenv()
 
@@ -189,16 +190,143 @@ class Game:
         return cases_msg
 
 
+class Money(dict):
+    def __init__(self, d):
+        super().__init__(d)
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, int(value))
+        data = None
+        with open("details.json", "r") as file:
+            data = json.load(file)
+        with open("details.json", "w") as file:
+            data["money"] = self
+            json.dump(data, file)
+
+    def __getitem__(self, key):
+        return super().__getitem__(key)
+
+
+class Lottery(list):
+    def __init__(self, l):
+        super().__init__(l)
+
+    def append(self, value):
+        super().append(value)
+        data = None
+        with open("details.json", "r") as file:
+            data = json.load(file)
+        with open("details.json", "w") as file:
+            data["lottery"] = self
+            json.dump(data, file)
+
+
+class Casino:
+    def __init__(self):
+        with open("details.json", "r") as file:
+            data = json.load(file)
+            self.money = Money(data["money"])
+            self.lottery_tracker = Lottery(data["lottery"])
+
+    async def register(self, msg, id):
+        if id in self.money:
+            await msg.reply("You are Already Registered!")
+            return
+        self.money[id] = 5000
+        await msg.reply("You have been registered!\nYou have 5000c")
+
+    async def lottery(self, msg: discord.Message, id):
+        if id not in self.money:
+            await msg.reply("Register First!")
+            return
+        if id in self.lottery_tracker:
+            await msg.reply("You have already spun the wheel!")
+            return
+        prizes = [None, None, None, 100, 50, 200, 50, 50, 50, 100]
+        random.shuffle(prizes)
+
+        lottery = msg.content.split()
+        if len(lottery) != 2:
+            await msg.reply("Please enter in the format `?lottery <guess>`")
+            return
+
+        if str(lottery[1]).isnumeric() and 0 < int(lottery[1]) <= 10:
+            prize = prizes[int(lottery[1])]
+            self.lottery_tracker.append(id)
+            if prize:
+                self.money[id] += prize
+                await msg.reply(
+                    f"You won {prize} coins!\nCurrent balance: **{self.money[id]}**c"
+                )
+            else:
+                await msg.reply("You won nothing! Try again later.")
+        else:
+            await msg.reply("Please enter a **number** from **1** to **20**")
+
+    async def gamble(self, msg, id):
+        if id not in self.money:
+            await msg.reply("Register First!")
+            return
+        g = msg.content.split()
+        g = g[1:]
+        if (
+            len(g) == 2
+            and g[0].isnumeric()
+            and g[1].isnumeric()
+            and 1 <= int(g[1]) <= 3
+        ):
+            if int(g[0]) > self.money[id]:
+                await msg.reply(
+                    f"You have only {self.money[id]}!\nYou can only place bets less than your money"
+                )
+            else:
+                guess = random.randint(1, 3)
+                if guess == int(g[1]):
+                    self.money[id] += int(g[0])
+                    await msg.reply(
+                        f"You guessed correctly!\nYou won {g[0]}c.\nCurrent Balance: **{self.money[id]}**c"
+                    )
+                else:
+                    self.money[id] -= int(g[0])
+                    await msg.reply(
+                        f"You guessed wrong\nCurrent Balance: **{self.money[id]}**c"
+                    )
+        else:
+            await msg.reply(
+                f"Please enter in the format: `?gamble <amt> <guess>`.\nMake sure the guess is between 1 and 3"
+            )
+
+    async def info(self, msg, id):
+        if id not in self.money:
+            await msg.reply("Register First!")
+            return
+        await msg.reply(f"Your Current Balance: **{self.money[id]}c**")
+
+    async def set(self, id, amt):
+        self.money[id] = amt
+
+    def rich(self, msg):
+        money = list(self.money.items())
+        money = sorted(money, key=lambda x: x[1])
+        return money[-1]
+
+    def lottery_reset(self):
+        self.lottery_tracker.clear()
+
+
 class MyClient(discord.Client):
     async def on_ready(self):
-        global allen
+        global allen, botchannel
         print("Logged in as")
         print(self.user.name)
         print(self.user.id)
         print("------")
         self.games: dict[int, Game] = {}
         allen = self.get_guild(names["Allen"])
+        botchannel = self.get_channel(975318526351003678)
         print("Allen: ", allen)
+        self.casino = Casino()
+        self.stuff.start()
 
     async def on_member_update(self, before, after):
         bact = list(before.activities)
@@ -245,9 +373,32 @@ class MyClient(discord.Client):
                 return
 
         # endregion
+        # region Gamble Bot
+        if message.content.startswith("?register"):
+            await self.casino.register(message, str(message.author.id))
+        elif message.content.startswith("?lottery"):
+            await self.casino.lottery(message, str(message.author.id))
+        elif message.content.startswith("?gamble"):
+            await self.casino.gamble(message, str(message.author.id))
+        elif message.content.startswith("?info"):
+            await self.casino.info(message, str(message.author.id))
+        elif message.author.id == 621638677612855306 and message.content.startswith(
+            "?set"
+        ):
+            msg = message.content.split()
+            await self.casino.set(msg[1][2:-1], msg[2])
+        elif message.content.startswith("?rich"):
+            det = self.casino.rich(message)
+            user: discord.User = await self.fetch_user(det[0])
+            await message.reply(f"{user.name}: **{det[1]}c**")
 
         gid = message.guild.id
         await guilds[gid].action(message)
+
+    @tasks.loop(hours=1)
+    async def stuff(self):
+        self.casino.lottery_reset()
+        await botchannel.send("Lottery Reset")
 
 
 client = MyClient(intents=discord.Intents.all())
