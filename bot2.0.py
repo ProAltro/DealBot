@@ -329,7 +329,7 @@ class Casino:
     def rich(self):
         money = list(self.money.items())
         money = sorted(money, key=lambda x: x[1])
-        return money
+        return money[::-1]
 
     def lottery_reset(self):
         self.lottery_tracker.clear()
