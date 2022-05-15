@@ -239,9 +239,9 @@ class Casino:
         if id not in self.money:
             await msg.reply("Register First!")
             return
-        """if id in self.lottery_tracker:
+        if id in self.lottery_tracker:
             await msg.reply("You have already spun the wheel!")
-            return"""
+            return
 
         lottery = msg.content.split()
         if len(lottery) != 3 or lottery[1] not in ("high", "low", "mid"):
