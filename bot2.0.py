@@ -414,7 +414,7 @@ class MyClient(discord.Client):
             for i in det:
                 user: discord.User = await self.fetch_user(i[0])
                 s += f"{user.name} - **{i[1]}c**"
-            message.reply(s)
+            await message.reply(s)
 
         gid = message.guild.id
         await guilds[gid].action(message)
