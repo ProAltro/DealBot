@@ -232,36 +232,57 @@ class Casino:
         if id in self.money:
             await msg.reply("You are Already Registered!")
             return
-        self.money[id] = 5000
-        await msg.reply("You have been registered!\nYou have 5000c")
+        self.money[id] = 50000
+        await msg.reply("You have been registered!\nYou have **5000c**")
 
     async def lottery(self, msg: discord.Message, id):
         if id not in self.money:
             await msg.reply("Register First!")
             return
-        if id in self.lottery_tracker:
+        """if id in self.lottery_tracker:
             await msg.reply("You have already spun the wheel!")
-            return
-        prizes = [None, None, None, 100, 50, 200, 50, 50, 50, 100]
-        random.shuffle(prizes)
+            return"""
 
         lottery = msg.content.split()
-        if len(lottery) != 2:
-            await msg.reply("Please enter in the format `?lottery <guess>`")
+        if len(lottery) != 3 or lottery[1] not in ("high", "low", "mid"):
+            await msg.reply(
+                """Please enter in the format `?lottery <type> <guess>`
+```Type:
+'low' - Guess Between 1 and 10
+'mid' - Guess Between 1 and 20
+'high' - Guess Between 1 and 50```"""
+            )
             return
-
-        if str(lottery[1]).isnumeric() and 0 < int(lottery[1]) <= 10:
-            prize = prizes[int(lottery[1])]
+        limits = {"high": 50, "low": 10, "mid": 20}
+        pool = {
+            "high": [
+                (40, None),
+                (5, 16000),
+                (3, 32000),
+                (2, 50000),
+                (1, 250000),
+            ],
+            "low": [(4, 250), (2, 2000), (2, 4000), (1, 10000)],
+            "mid": [(15, 500), (3, 4000), (2, 8000), (1, 50000)],
+        }
+        t = lottery[1]
+        print(int(lottery[2]))
+        if str(lottery[2]).isnumeric() and 0 < int(lottery[2]) <= limits[t]:
+            prizes = []
+            for i in pool[t]:
+                prizes.extend(i[0] * [i[1]])
+            random.shuffle(prizes)
+            prize = prizes[int(lottery[2])]
             self.lottery_tracker.append(id)
             if prize:
                 self.money[id] += prize
                 await msg.reply(
-                    f"You won {prize} coins!\nCurrent balance: **{self.money[id]}**c"
+                    f"You won {prize} coins!\nCurrent balance: **{self.money[id]}c**"
                 )
             else:
                 await msg.reply("You won nothing! Try again later.")
         else:
-            await msg.reply("Please enter a **number** from **1** to **20**")
+            await msg.reply(f"Please enter a **number** from **1** to **{limits[t]}**")
 
     async def gamble(self, msg, id):
         if id not in self.money:
