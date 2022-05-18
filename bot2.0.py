@@ -295,6 +295,7 @@ class Casino:
             await msg.reply("You are Already Registered!")
             return
         self.money[id] = 50000
+        self.users[id] = await client.fetch_user(id)
         await msg.reply("You have been registered!\nYou have **50000c**")
 
     async def lottery(self, msg: discord.Message, id):
