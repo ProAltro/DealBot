@@ -295,7 +295,7 @@ class Casino:
             await msg.reply("You are Already Registered!")
             return
         self.money[id] = 50000
-        await msg.reply("You have been registered!\nYou have **5000c**")
+        await msg.reply("You have been registered!\nYou have **50000c**")
 
     async def lottery(self, msg: discord.Message, id):
         if id in self.lottery_tracker:
