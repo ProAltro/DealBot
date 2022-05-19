@@ -1,6 +1,6 @@
 import re
 import discord
-import random, json, time, threading
+import random, json
 import asyncio, os
 from dotenv import load_dotenv
 from discord.utils import get
@@ -236,14 +236,13 @@ class Duel:
         self.host = host
         self.p = p
         self.amt = amt
-        self.status = 0
         self.stage = "inv"
         self.casino = casino
 
     def accepted(self):
         self.stage = "guess"
-        self.status += 1
         self.guesses = {self.host: [], self.p: []}
+        schedule(30, self.casino.delete_duel, self, init_stage="guess", dm="Duel timed out. Players took too long to guess.")
 
     async def check(self):
         if self.guesses[self.host] and self.guesses[self.p]:
@@ -254,28 +253,30 @@ class Duel:
                 self.guesses[i] = [abs(j - win) for j in self.guesses[i]]
             host = min(self.guesses[self.host])
             p = min(self.guesses[self.p])
-            prompt = f"""Number: {win}
-{self.casino.users[self.host].name}'s guesses: {guess[self.host]}
-{self.casino.users[self.p].name}'s guesses: {guess[self.p]}\n"""
+            prompt = f"""**Number**: `{win}`\n
+{self.casino.users[self.host].name}'s guesses: `{guess[self.host]}`
+{self.casino.users[self.p].name}'s guesses: `{guess[self.p]}`\n"""
             if p < host:
                 self.casino.money[self.host] -= self.amt
                 self.casino.money[self.p] += self.amt
-                prompt += f"""Closest Guess: {guess[self.p][self.guesses[self.p].index(p)]}
-Winner: {self.casino.users[self.p].name}"""
+                prompt += f"""Closest Guess: `{guess[self.p][self.guesses[self.p].index(p)]}`\n
+**Winner:** {self.casino.users[self.p].name}\n\n"""
             elif p > host:
                 self.casino.money[self.host] += self.amt
                 self.casino.money[self.p] -= self.amt
-                prompt += f"""Closest Guess: {guess[self.host][self.guesses[self.host].index(host)]}
-Winner: {self.casino.users[self.host].name}"""
+                prompt += f"""Closest Guess: `{guess[self.host][self.guesses[self.host].index(host)]}`\n
+**Winner:** {self.casino.users[self.host].name}\n\n"""
             else:
-                prompt += f"""Closest Guess: {guess[self.host][self.guesses[self.host].index(host)]}
-**Tie**\n"""
+                prompt += f"""Closest Guess: `{guess[self.host][self.guesses[self.host].index(host)]}`\n
+**Tie**\n\n"""
 
-            prompt += f"""{self.casino.users[self.host].name}'s Balance: {self.casino.money[self.host]}c\n"""
-            prompt += f"""{self.casino.users[self.p].name}'s Balance: {self.casino.money[self.p]}c"""
+            prompt += f"""{self.casino.users[self.host].name}'s Balance: `{self.casino.money[self.host]}c`\n"""
+            prompt += f"""{self.casino.users[self.p].name}'s Balance: `{self.casino.money[self.p]}c`"""
             await self.casino.users[self.host].send(prompt)
             await self.casino.users[self.p].send(prompt)
-            self.status = 0
+
+            await self.casino.delete_duel(self, duel_over = True)
+
             return True
         return False
 
@@ -413,27 +414,30 @@ class Casino:
         elif host in self.duels:
             await msg.reply(f"You are already in a duel!")
         elif person in self.duels:
-            await msg.reply("The perosn you challenged is already in a duel")
+            await msg.reply("The person you challenged is already in a duel")
+        elif person == host:
+            await msg.reply("You can't duel yourself.")
         else:
             self.duels[host] = Duel(host, person, amt, self)
-            t = threading.Thread(
-                target=self.delete_duel,
-                args=(self.duels[host], [host, person], 30),
-            )
-            t.start()
+            schedule(30, self.delete_duel, self.duels[host], dm="Duel timed out.", init_stage="inv")
+            # t = threading.Thread(
+            #     target=self.delete_duel,
+            #     args=(self.duels[host], [host, person], 30, True),
+            # )
+            # t.start()
+            await msg.reply(f"{self.users[person].name} has been invited to duel.")
             await self.users[person].send(
                 f"{self.users[host].name} has invited you to a duel with the bet of {amt}c.\nAccept or not? Enter yes/no"
             )
             self.duels[person] = self.duels[host]
 
-    def delete_duel(self, duel, persons, tim):
-        time.sleep(tim)
-        if duel.status == 0:
-            for i in persons:
+    async def delete_duel(self, duel, init_stage=None, dm=None, duel_over=False):
+        if (duel.stage == init_stage) or duel_over:
+            for i in [duel.host, duel.p]:
                 if i in self.duels:
                     del self.duels[i]
-        else:
-            duel.status -= 1
+                if dm != None:
+                    await duel.casino.users[i].send(dm)
 
     async def data(self, msg):
         with open("details.json", "r") as f:
@@ -520,15 +524,19 @@ class MyClient(discord.Client):
                 await self.casino.gamble(message, str(message.author.id))
             elif message.content.startswith("?info"):
                 det = message.content.split()
+                mentioned_id = parse_mention(det[1])
+
                 if len(det) == 1:
                     await self.casino.info(message, str(message.author.id))
-                if len(det) == 2:
-                    await self.casino.info(message, det[1][2:-1])
+                if len(det) == 2 and mentioned_id != None:
+                    await self.casino.info(message, mentioned_id)
             elif message.content.startswith("?donate"):
                 det = message.content.split()
-                if len(det) == 3 and det[2].isnumeric():
+                mentioned_id = parse_mention(det[1])
+
+                if len(det) == 3 and det[2].isnumeric() and mentioned_id != None:
                     await self.casino.donate(
-                        message, str(message.author.id), det[1][2:-1], int(det[2])
+                        message, str(message.author.id), mentioned_id, int(det[2])
                     )
                 else:
                     await message.reply("Enter in the format `?donate <player> <amt>`")
@@ -543,9 +551,10 @@ class MyClient(discord.Client):
 
             elif message.content.startswith("?duel"):
                 det = message.content.split()
-                if len(det) == 3 and det[2].isnumeric():
+                mentioned_id = parse_mention(det[1])
+                if len(det) == 3 and det[2].isnumeric() and mentioned_id != None:
                     await self.casino.duel(
-                        message, str(message.author.id), det[1][2:-1], int(det[2])
+                        message, str(message.author.id), mentioned_id, int(det[2])
                     )
                 else:
                     await message.reply("Enter in the format `?duel <player> <amt>`")
@@ -553,8 +562,12 @@ class MyClient(discord.Client):
             if message.author.id == 621638677612855306:
                 if message.content.startswith("?set"):
                     msg = message.content.split()
-                    self.casino.set(msg[1][2:-1], msg[2])
-                    await message.reply("Done.")
+                    mentioned_id = parse_mention(msg[1])
+                    if mentioned_id != None:
+                        self.casino.set(mentioned_id, msg[2])
+                        await message.reply("Done.")
+                    else:
+                        await message.reply("Mention someone.")
                 elif message.content.startswith("?reset"):
                     self.casino.reset()
                     await message.reply("Done.")
@@ -576,8 +589,9 @@ class MyClient(discord.Client):
                             h = duel.host
                             await self.casino.users[h].send("Duel Rejected")
                             await message.reply("Duel Rejected")
-                            del self.casino.duels[did]
-                            del self.casino.duels[h]
+                            duel.stage = "rejected"
+
+                            await self.casino.delete_duel(duel, duel_over=True)
                         else:
                             await message.reply("Enter yes or no")
                     elif duel.stage == "guess":
@@ -629,6 +643,22 @@ class MyClient(discord.Client):
         self.casino.lottery_reset()
         await botchannel.send("Lottery Reset")
 
+def schedule(time, callback, *args, **kwargs):
+    async def e():
+        await asyncio.sleep(time)
+
+        if asyncio.iscoroutinefunction(callback):
+            await callback(*args, **kwargs)
+        else:
+            callback(*args, **kwargs)
+
+    asyncio.ensure_future(e())
+
+def parse_mention(string):
+    matches = re.findall(r"<@!?(\d+)>", string)
+
+    if len(matches) > 0:
+        return matches[0]
 
 client = MyClient(intents=discord.Intents.all())
 try:
