@@ -283,6 +283,10 @@ class Duel:
 
 class Casino:
     def __init__(self, client):
+        if not os.path.exists("details.json"):
+            with open("details.json", "w") as file:
+                json.dump({"money": {}, "lottery": []}, file)
+                
         with open("details.json", "r") as file:
             data = json.load(file)
             self.money = Money(data["money"])
