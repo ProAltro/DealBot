@@ -1,5 +1,6 @@
+import re
 import discord
-import random, json
+import random, json, time, threading
 import asyncio, os
 from dotenv import load_dotenv
 from discord.utils import get
@@ -220,25 +221,84 @@ class Lottery(list):
             data["lottery"] = self
             json.dump(data, file)
 
+    def clear(self):
+        super().clear()
+        data = None
+        with open("details.json", "r") as file:
+            data = json.load(file)
+        with open("details.json", "w") as file:
+            data["lottery"] = []
+            json.dump(data, file)
+
+
+class Duel:
+    def __init__(self, host, p, amt, casino):
+        self.host = host
+        self.p = p
+        self.amt = amt
+        self.status = 0
+        self.stage = "inv"
+        self.casino = casino
+
+    def accepted(self):
+        self.stage = "guess"
+        self.status += 1
+        self.guesses = {self.host: [], self.p: []}
+
+    async def check(self):
+        if self.guesses[self.host] and self.guesses[self.p]:
+            self.stage = "compl"
+            win = random.randint(1, 30)
+            guess = dict(self.guesses)
+            for i in self.guesses:
+                self.guesses[i] = [abs(j - win) for j in self.guesses[i]]
+            host = min(self.guesses[self.host])
+            p = min(self.guesses[self.p])
+            prompt = f"""Number: {win}
+{self.casino.users[self.host].name}'s guesses: {guess[self.host]}
+{self.casino.users[self.p].name}'s guesses: {guess[self.p]}\n"""
+            if p < host:
+                self.casino.money[self.host] -= self.amt
+                self.casino.money[self.p] += self.amt
+                prompt += f"""Closest Guess: {guess[self.p][self.guesses[self.p].index(p)]}
+Winner: {self.casino.users[self.p].name}"""
+            elif p > host:
+                self.casino.money[self.host] += self.amt
+                self.casino.money[self.p] -= self.amt
+                prompt += f"""Closest Guess: {guess[self.host][self.guesses[self.host].index(host)]}
+Winner: {self.casino.users[self.host].name}"""
+            else:
+                prompt += f"""Closest Guess: {guess[self.host][self.guesses[self.host].index(host)]}
+**Tie**\n"""
+
+            prompt += f"""{self.casino.users[self.host].name}'s Balance: {self.casino.money[self.host]}c\n"""
+            prompt += f"""{self.casino.users[self.p].name}'s Balance: {self.casino.money[self.p]}c"""
+            await self.casino.users[self.host].send(prompt)
+            await self.casino.users[self.p].send(prompt)
+            self.status = 0
+            return True
+        return False
+
 
 class Casino:
-    def __init__(self):
+    def __init__(self, client):
         with open("details.json", "r") as file:
             data = json.load(file)
             self.money = Money(data["money"])
             self.lottery_tracker = Lottery(data["lottery"])
+            self.users = {}
+            self.duels = {}
+            self.client = client
 
     async def register(self, msg, id):
         if id in self.money:
             await msg.reply("You are Already Registered!")
             return
         self.money[id] = 50000
+        self.users[id] = await client.fetch_user(id)
         await msg.reply("You have been registered!\nYou have **50000c**")
 
     async def lottery(self, msg: discord.Message, id):
-        if id not in self.money:
-            await msg.reply("Register First!")
-            return
         if id in self.lottery_tracker:
             await msg.reply("You have already spun the wheel!")
             return
@@ -266,7 +326,7 @@ class Casino:
             "mid": [(15, 500), (3, 4000), (2, 8000), (1, 50000)],
         }
         t = lottery[1]
-        print(int(lottery[2]))
+
         if str(lottery[2]).isnumeric() and 0 < int(lottery[2]) <= limits[t]:
             prizes = []
             for i in pool[t]:
@@ -285,9 +345,6 @@ class Casino:
             await msg.reply(f"Please enter a **number** from **1** to **{limits[t]}**")
 
     async def gamble(self, msg, id):
-        if id not in self.money:
-            await msg.reply("Register First!")
-            return
         g = msg.content.split()
         g = g[1:]
         if (
@@ -319,17 +376,72 @@ class Casino:
 
     async def info(self, msg, id):
         if id not in self.money:
-            await msg.reply("Register First!")
+            await msg.reply("Player not registered")
             return
-        await msg.reply(f"Your Current Balance: **{self.money[id]}c**")
+        await msg.reply(f"Balance: **{self.money[id]}c**")
 
-    async def set(self, id, amt):
+    def set(self, id, amt):
         self.money[id] = amt
 
     def rich(self):
         money = list(self.money.items())
         money = sorted(money, key=lambda x: x[1])
-        return money[::-1]
+        return money[::-1][:10]
+
+    async def donate(self, msg, gid, rid, amt):
+        if rid not in self.money:
+            await msg.reply("Receiver is not playing the game!")
+            return
+        if amt > self.money[gid]:
+            await msg.reply(f"You dont have **{amt}c** to donate!")
+            return
+        self.money[gid] -= amt
+        self.money[rid] += amt
+        await msg.reply(
+            f"{self.users[gid]} gave {amt}c to {self.users[rid]}!\n{self.users[gid]}: {self.money[gid]}c\n{self.users[rid]}: {self.money[rid]}c"
+        )
+
+    async def duel(self, msg, host, person, amt):
+        if person not in self.money:
+            await msg.reply("The person you challenged isnt registered!")
+        elif amt > self.money[host]:
+            await msg.reply(f"You dont have **{amt}c** to donate!")
+        elif amt > self.money[person]:
+            await msg.reply(
+                f"The person you challenged doesnt have enough money to cover the bet"
+            )
+        elif host in self.duels:
+            await msg.reply(f"You are already in a duel!")
+        elif person in self.duels:
+            await msg.reply("The perosn you challenged is already in a duel")
+        else:
+            self.duels[host] = Duel(host, person, amt, self)
+            t = threading.Thread(
+                target=self.delete_duel,
+                args=(self.duels[host], [host, person], 30),
+            )
+            t.start()
+            await self.users[person].send(
+                f"{self.users[host].name} has invited you to a duel with the bet of {amt}c.\nAccept or not? Enter yes/no"
+            )
+            self.duels[person] = self.duels[host]
+
+    def delete_duel(self, duel, persons, tim):
+        time.sleep(tim)
+        if duel.status == 0:
+            for i in persons:
+                if i in self.duels:
+                    del self.duels[i]
+        else:
+            duel.status -= 1
+
+    async def data(self, msg):
+        with open("details.json", "r") as f:
+            await msg.reply(f"```{json.load(f)}```")
+
+    def reset(self):
+        for i in self.money:
+            self.money[i] = 50000
 
     def lottery_reset(self):
         self.lottery_tracker.clear()
@@ -346,7 +458,11 @@ class MyClient(discord.Client):
         allen = self.get_guild(names["Allen"])
         botchannel = self.get_channel(975318526351003678)
         print("Allen: ", allen)
-        self.casino = Casino()
+        self.casino = Casino(self)
+        self.casino.users = {}
+        for i in self.casino.money:
+            user: discord.User = await self.fetch_user(i)
+            self.casino.users[i] = user
         self.stuff.start()
 
     async def on_member_update(self, before, after):
@@ -397,27 +513,116 @@ class MyClient(discord.Client):
         # region Gamble Bot
         if message.content.startswith("?register"):
             await self.casino.register(message, str(message.author.id))
-        elif message.content.startswith("?lottery"):
-            await self.casino.lottery(message, str(message.author.id))
-        elif message.content.startswith("?gamble"):
-            await self.casino.gamble(message, str(message.author.id))
-        elif message.content.startswith("?info"):
-            await self.casino.info(message, str(message.author.id))
-        elif message.author.id == 621638677612855306 and message.content.startswith(
-            "?set"
-        ):
-            msg = message.content.split()
-            await self.casino.set(msg[1][2:-1], msg[2])
-        elif message.content.startswith("?rich"):
-            det = self.casino.rich()
-            s = ""
-            for i in det:
-                user: discord.User = await self.fetch_user(i[0])
-                s += f"{user.name} - **{i[1]}c**\n"
-            await message.reply(s)
+        elif str(message.author.id) in self.casino.money.keys():
+            if message.content.startswith("?lottery"):
+                await self.casino.lottery(message, str(message.author.id))
+            elif message.content.startswith("?gamble"):
+                await self.casino.gamble(message, str(message.author.id))
+            elif message.content.startswith("?info"):
+                det = message.content.split()
+                if len(det) == 1:
+                    await self.casino.info(message, str(message.author.id))
+                if len(det) == 2:
+                    await self.casino.info(message, det[1][2:-1])
+            elif message.content.startswith("?donate"):
+                det = message.content.split()
+                if len(det) == 3 and det[2].isnumeric():
+                    await self.casino.donate(
+                        message, str(message.author.id), det[1][2:-1], int(det[2])
+                    )
+                else:
+                    await message.reply("Enter in the format `?donate <player> <amt>`")
 
-        gid = message.guild.id
-        await guilds[gid].action(message)
+            elif message.content.startswith("?rich"):
+                det = self.casino.rich()
+                s = ""
+                for i in det:
+                    user = self.casino.users[i[0]]
+                    s += f"{user.name} - **{i[1]}c**\n"
+                await message.reply(s)
+
+            elif message.content.startswith("?duel"):
+                det = message.content.split()
+                if len(det) == 3 and det[2].isnumeric():
+                    await self.casino.duel(
+                        message, str(message.author.id), det[1][2:-1], int(det[2])
+                    )
+                else:
+                    await message.reply("Enter in the format `?duel <player> <amt>`")
+
+            if message.author.id == 621638677612855306:
+                if message.content.startswith("?set"):
+                    msg = message.content.split()
+                    self.casino.set(msg[1][2:-1], msg[2])
+                    await message.reply("Done.")
+                elif message.content.startswith("?reset"):
+                    self.casino.reset()
+                    await message.reply("Done.")
+                elif message.content.startswith("?data"):
+                    await self.casino.data(message)
+
+            if isinstance(message.channel, discord.DMChannel):
+                did = str(message.author.id)
+                if did in self.casino.duels:
+                    duel = self.casino.duels[did]
+                    if duel.stage == "inv" and duel.p == did:
+                        m = message.content.split()
+                        if "y" in m[0]:
+                            duel.accepted()
+                            prompt = "Duel Accepted\nGuess 3 numbers between 1 to 30 and send them seperated by space"
+                            await message.reply(prompt)
+                            await self.casino.users[duel.host].send(prompt)
+                        elif "n" in m[0]:
+                            h = duel.host
+                            await self.casino.users[h].send("Duel Rejected")
+                            await message.reply("Duel Rejected")
+                            del self.casino.duels[did]
+                            del self.casino.duels[h]
+                        else:
+                            await message.reply("Enter yes or no")
+                    elif duel.stage == "guess":
+                        if len(duel.guesses[did]) == 0:
+                            m = message.content.split()
+                            if (
+                                len(m) == 3
+                                and m[0].isnumeric()
+                                and m[1].isnumeric()
+                                and m[2].isnumeric()
+                            ):
+                                duel.guesses[did] = [
+                                    int(m[1]),
+                                    int(m[2]),
+                                    int(m[0]),
+                                ]
+                                await duel.check()
+
+                            else:
+                                await message.reply(
+                                    "Please enter 3 numbers like `<num1> <num2> <num3>`"
+                                )
+                        else:
+                            await message.reply("You have already guessed!")
+
+        elif message.content.startswith("?"):
+            m = message.content.split()
+            if m[0][1:] in [
+                "info",
+                "gamble",
+                "rich",
+                "donate",
+                "lottery",
+                "reset",
+                "set",
+                "data",
+                "duel",
+            ]:
+                await message.reply("Register First!")
+        if isinstance(message.channel, discord.TextChannel):
+            try:
+                gid = message.guild.id
+                await guilds[gid].action(message)
+            except KeyError:
+                print("Error")
 
     @tasks.loop(hours=1)
     async def stuff(self):
