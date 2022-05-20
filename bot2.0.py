@@ -242,7 +242,13 @@ class Duel:
     def accepted(self):
         self.stage = "guess"
         self.guesses = {self.host: [], self.p: []}
-        schedule(30, self.casino.delete_duel, self, init_stage="guess", dm="Duel timed out. Players took too long to guess.")
+        schedule(
+            30,
+            self.casino.delete_duel,
+            self,
+            init_stage="guess",
+            dm="Duel timed out. Players took too long to guess.",
+        )
 
     async def check(self):
         if self.guesses[self.host] and self.guesses[self.p]:
@@ -275,7 +281,7 @@ class Duel:
             await self.casino.users[self.host].send(prompt)
             await self.casino.users[self.p].send(prompt)
 
-            await self.casino.delete_duel(self, duel_over = True)
+            await self.casino.delete_duel(self, duel_over=True)
 
             return True
         return False
@@ -286,7 +292,7 @@ class Casino:
         if not os.path.exists("details.json"):
             with open("details.json", "w") as file:
                 json.dump({"money": {}, "lottery": []}, file)
-                
+
         with open("details.json", "r") as file:
             data = json.load(file)
             self.money = Money(data["money"])
@@ -423,7 +429,13 @@ class Casino:
             await msg.reply("You can't duel yourself.")
         else:
             self.duels[host] = Duel(host, person, amt, self)
-            schedule(30, self.delete_duel, self.duels[host], dm="Duel timed out.", init_stage="inv")
+            schedule(
+                30,
+                self.delete_duel,
+                self.duels[host],
+                dm="Duel timed out.",
+                init_stage="inv",
+            )
             # t = threading.Thread(
             #     target=self.delete_duel,
             #     args=(self.duels[host], [host, person], 30, True),
@@ -529,11 +541,12 @@ class MyClient(discord.Client):
             elif message.content.startswith("?info"):
                 det = message.content.split()
                 mentioned_id = parse_mention(det[1])
-
                 if len(det) == 1:
                     await self.casino.info(message, str(message.author.id))
-                if len(det) == 2 and mentioned_id != None:
+                elif len(det) == 2 and mentioned_id != None:
                     await self.casino.info(message, mentioned_id)
+                else:
+                    await message.send("Enter in the format `?info (optional:<user>)`")
             elif message.content.startswith("?donate"):
                 det = message.content.split()
                 mentioned_id = parse_mention(det[1])
@@ -647,6 +660,7 @@ class MyClient(discord.Client):
         self.casino.lottery_reset()
         await botchannel.send("Lottery Reset")
 
+
 def schedule(time, callback, *args, **kwargs):
     async def e():
         await asyncio.sleep(time)
@@ -658,11 +672,13 @@ def schedule(time, callback, *args, **kwargs):
 
     asyncio.ensure_future(e())
 
+
 def parse_mention(string):
     matches = re.findall(r"<@!?(\d+)>", string)
 
     if len(matches) > 0:
         return matches[0]
+
 
 client = MyClient(intents=discord.Intents.all())
 try:
